@@ -1,26 +1,31 @@
-import { AppShell, Burger, Center, Flex, Group, Paper, ScrollArea, Stack, Title } from "@mantine/core"
-import { useDisclosure } from "@mantine/hooks"
+import { atom, useRecoilValue } from "recoil"
+import { AppShell, Center, Flex, Paper, ScrollArea, Stack } from "@mantine/core"
 
 import LinkSection from "./components/LinkInput"
+import Header from "./Header"
+
+
+export const appStateAtom = atom<IAppState>({
+  key: "appState",
+  default: {
+    isNavbarOpen: false
+  }
+})
 
 
 export default function App() {
-  const [opened, { toggle }] = useDisclosure()
+  const appState = useRecoilValue<IAppState>(appStateAtom)
+  const { isNavbarOpen } = appState
 
   return (
     <AppShell header={{ height: 80 }} navbar={{
       width: { sm: 240, md: 300, lg: 360 },
       breakpoint: "sm",
-      collapsed: { mobile: !opened }
+      collapsed: { mobile: !isNavbarOpen }
     }} padding="md" withBorder={false}>
-      <AppShell.Header bg="#B0A695">
-        <Group h="100%" px="md">
-          <Burger opened={opened} onClick={toggle} hiddenFrom="sm" size="sm" />
-          <Title order={1} c="white">ReadCap</Title>
-        </Group>
-      </AppShell.Header>
+      <Header />
       <AppShell.Navbar p={0}>
-        <Stack gap={0} h="100%" bg="#EBE3D5">
+        <Stack gap={0} p={20} h="100%" bg="#EBE3D5">
           <Center h={80}>
             <LinkSection />
           </Center>
