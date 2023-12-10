@@ -10,7 +10,13 @@ import "./styles.css"
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
-    <MantineProvider>
+    <MantineProvider theme={{
+      breakpoints: {
+        sm: "300px",
+        md: "800px",
+        lg: "1200px"
+      }
+    }}>
       <App />
     </MantineProvider>
   </React.StrictMode>
