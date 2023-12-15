@@ -1,184 +1,275 @@
 package main
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
-	"syscall/js"
+	"net/url"
 	"time"
 
-	"golang.org/x/net/html"
+	"github.com/dgraph-io/badger/v3"
+	"github.com/gin-gonic/gin"
+	clover "github.com/ostafen/clover/v2"
+	d "github.com/ostafen/clover/v2/document"
+	"github.com/ostafen/clover/v2/query"
+	badgerstore "github.com/ostafen/clover/v2/store/badger"
 )
 
-type Page struct {
-	Title             string `json:"title"`
-	EstimatedReadTime int    `json:"estimatedReadTime"`
-	CreateAt          string `json:"createAt"`
-	HTMLContent       string `json:"htmlContent"`
+type Data struct {
+	CreateAt    int64  `json:"createAt"`
+	HtmlContent string `json:"htmlContent"`
 }
 
-func GetURLContent(this js.Value, args []js.Value) (any, error) {
-	var url string = args[0].String()
-
-	client := &http.Client{}
-
-	fmt.Println("URL1:", url)
-
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		fmt.Println(err)
-		return nil, err
-	}
-
-	fmt.Println("URL2:", url)
-
-	resp, err := client.Do(req)
-
-	resp.Header.Set("Access-Control-Allow-Origin", "*")
-	fmt.Println("URL3:", url)
-	if err != nil {
-		fmt.Println(err)
-		return nil, err
-	}
-
-	fmt.Println("URL4:", url)
-
-	var m map[string]interface{}
-	doc, err := html.Parse(resp.Body)
-	if err != nil {
-		fmt.Println(err)
-		return nil, err
-	}
-
-	defer resp.Body.Close()
-
-	var page Page
-
-	var nTitle *html.Node
-	var sTxt string
-	var bufInnerHtml bytes.Buffer
-
-	w := io.Writer(&bufInnerHtml)
-
-	var f func(*html.Node)
-	f = func(n *html.Node) {
-		if n.Type == html.ElementNode && n.Data == "title" {
-			nTitle = n
-		}
-
-		if nTitle != nil {
-			if n != nTitle { // don't write the a tag and its attributes
-				html.Render(w, n)
-			}
-			if n.Type == html.TextNode {
-				sTxt += n.Data
-			}
-		}
-
-		for c := n.FirstChild; c != nil; c = c.NextSibling {
-			f(c)
-		}
-
-		if n == nTitle {
-			fmt.Println("Text:", sTxt)
-			fmt.Println("InnerHTML:", bufInnerHtml.String())
-			if len(page.Title) == 0 {
-				page.Title = sTxt
-			}
-			sTxt = ""
-			bufInnerHtml.Reset()
-			nTitle = nil
-		}
-	}
-
-	f(doc)
-
-	filteredMap := make(map[string]interface{})
-	var totalWords int = 0
-	for key, value := range m {
-		str := value.(string)
-		/*if len(str) >= 50 {
-			filteredMap[key] = str
-		}*/
-		filteredMap[key] = str
-		totalWords += len(str)
-	}
-
-	jsonData, _ := json.Marshal(filteredMap)
-
-	page.HTMLContent = string(jsonData)
-	currentTime := time.Now()
-	timeString := currentTime.Format("2006-01-02 15:04:05")
-	page.CreateAt = timeString
-	page.EstimatedReadTime = totalWords / 200
-
-	// doc, err := goquery.NewDocumentFromReader(resp.Body)
-	// var title string
-	// if err != nil {
-	// 	title = ""
-	// } else {
-	// 	title = doc.Find("title").Text()
-	// }
-	// page.Title = title
-
-	result := make(map[string]interface{})
-	result["title"] = page.Title
-	result["estimatedReadTime"] = page.EstimatedReadTime
-	result["createAt"] = page.CreateAt
-	result["htmlContent"] = page.HTMLContent
-	return result, nil
+type IPage struct {
+	Type     string   `json:"type"`
+	Site     string   `json:"site"`
+	Lang     string   `json:"lang"`
+	Link     string   `json:"link"`
+	Tags     []string `json:"tags"`
+	Title    string   `json:"title"`
+	Notes    []string `json:"notes"`
+	Length   int64    `json:"length"`
+	Byline   string   `json:"byline"`
+	Excerpt  string   `json:"excerpt"`
+	Content  string   `json:"content"`
+	CreateAt int64    `json:"createAt"`
+	LastView int64    `json:"lastView"`
+	Index    int64    `json:"index"`
 }
 
-// func registerCallbacks() {
-// 	// TODO: Register the function GetURLContent
-// 	js.Global().Set("GetURLContent", js.FuncOf(GetURLContent))
-// }
+type IAppState struct {
+	IsNavBarOpen bool    `json:"isNavBarOpen"`
+	CurrentLink  string  `json:"currentLink"`
+	CurrentPage  IPage   `json:"currentPage"`
+	Pages        []IPage `json:"pages"`
+}
 
-// func main() {
-// 	fmt.Println("Golang main function executed")
-// 	registerCallbacks()
+var db *clover.DB
 
-// 	//need block the main thread forever
-// 	select {}
-// }
+func getURL(c *gin.Context) {
+	encodedUrl := c.Param("link")
+	decodedUrl, _ := url.QueryUnescape(encodedUrl)
+	resp, _ := http.Get(decodedUrl)
+	body, _ := io.ReadAll(resp.Body)
+	var data Data
+	data.CreateAt = time.Now().Unix()
+	data.HtmlContent = string(body)
+	c.JSON(200, data)
+}
 
-type fn func(this js.Value, args []js.Value) (any, error)
+func pageDeal(doc *d.Document) IPage {
+	var page IPage
+	page.Type = doc.Get("type").(string)
+	page.Site = doc.Get("site").(string)
+	page.Lang = doc.Get("lang").(string)
+	page.Link = doc.Get("link").(string)
+	tag_slice, _ := doc.Get("tags").([]interface{})
+	page.Tags = make([]string, len(tag_slice))
+	for i, v := range tag_slice {
+		page.Tags[i] = v.(string)
+	}
+	page.Title = doc.Get("title").(string)
+	notes_slice, _ := doc.Get("notes").([]interface{})
+	page.Notes = make([]string, len(notes_slice))
+	for i, v := range notes_slice {
+		page.Notes[i] = v.(string)
+	}
+	//page.Length = doc.Get("length").(int64)
+	lengthValue := doc.Get("length")
+	var lengthInt64 int64
+	switch lengthValue := lengthValue.(type) {
+	case float64:
+		lengthInt64 = int64(lengthValue)
+	case int64:
+		lengthInt64 = lengthValue
+	}
+	page.Length = lengthInt64
+	page.Byline = doc.Get("byline").(string)
+	page.Excerpt = doc.Get("excerpt").(string)
+	page.Content = doc.Get("content").(string)
 
-var (
-	jsErr     js.Value = js.Global().Get("Error")
-	jsPromise js.Value = js.Global().Get("Promise")
-)
+	createAtValue := doc.Get("createAt")
+	var createAtValueInt64 int64
+	switch createAtValue := createAtValue.(type) {
+	case float64:
+		createAtValueInt64 = int64(createAtValue)
+	case int64:
+		createAtValueInt64 = createAtValue
+	}
+	page.CreateAt = createAtValueInt64
 
-func asyncFunc(innerFunc fn) js.Func {
-	return js.FuncOf(func(this js.Value, args []js.Value) any {
-		handler := js.FuncOf(func(_ js.Value, promFn []js.Value) any {
-			resolve, reject := promFn[0], promFn[1]
+	lastViewValue := doc.Get("lastView")
+	var lastViewValueInt64 int64
+	switch lastViewValue := lastViewValue.(type) {
+	case float64:
+		lastViewValueInt64 = int64(lastViewValue)
+	case int64:
+		lastViewValueInt64 = lastViewValue
+	}
+	page.LastView = lastViewValueInt64
+	//page.LastView = doc.Get("lastView").(int64)
 
-			go func() {
-				defer func() {
-					if r := recover(); r != nil {
-						reject.Invoke(jsErr.New(fmt.Sprint("panic:", r)))
-					}
-				}()
+	indexValue := doc.Get("index")
+	var indexValueInt64 int64
+	switch indexValue := indexValue.(type) {
+	case float64:
+		indexValueInt64 = int64(indexValue)
+	case int64:
+		indexValueInt64 = indexValue
+	}
+	page.Index = indexValueInt64
+	return page
+}
 
-				res, err := innerFunc(this, args)
-				if err != nil {
-					reject.Invoke(jsErr.New(err.Error()))
-				} else {
-					resolve.Invoke(res)
-				}
-			}()
+func getPage(c *gin.Context) { //get page from db
+	encodedURL := c.Param("link")
+	decodedURL, _ := url.QueryUnescape(encodedURL)
+	fmt.Println(decodedURL)
+	var page IPage
+	query := query.NewQuery("todos").Where(query.Field("link").Eq(decodedURL))
+	doc, err := db.FindFirst(query)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	page = pageDeal(doc)
+	c.JSON(200, page)
+	db.ExportCollection("todos", "todos.json")
+}
 
-			return nil
-		})
+func getPages(c *gin.Context) { //get all pages from db
+	var pages []IPage
+	query := query.NewQuery("todos")
+	docs, err := db.FindAll(query)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	for _, doc := range docs {
+		var page IPage
+		page = pageDeal(doc)
+		pages = append(pages, page)
+	}
+	c.JSON(200, pages)
+	db.ExportCollection("todos", "todos.json")
+}
 
-		return jsPromise.New(handler)
-	})
+func putURL(c *gin.Context) { //update something in db
+	var newIPage IPage
+	//fmt.Println("Inside postURL")
+
+	if err := c.ShouldBindJSON(&newIPage); err != nil {
+		fmt.Println(err)
+		fmt.Println("Bind error")
+		return
+	}
+	todo := make(map[string]interface{})
+	todo["type"] = newIPage.Type
+	todo["site"] = newIPage.Site
+	todo["lang"] = newIPage.Lang
+	todo["link"] = newIPage.Link
+	todo["tags"] = newIPage.Tags
+	todo["title"] = newIPage.Title
+	todo["notes"] = newIPage.Notes
+	todo["length"] = newIPage.Length
+	todo["byline"] = newIPage.Byline
+	todo["excerpt"] = newIPage.Excerpt
+	todo["content"] = newIPage.Content
+	todo["createAt"] = newIPage.CreateAt
+	todo["lastView"] = newIPage.LastView
+	todo["index"] = newIPage.Index
+
+	doc := d.NewDocumentOf(todo)
+	db.Delete(query.NewQuery("todos").Where(query.Field("link").Eq(newIPage.Link)))
+	mapDocId, _ := db.InsertOne("todos", doc)
+	fmt.Println(mapDocId)
+	fmt.Print(newIPage.LastView)
+	db.ExportCollection("todos", "todos.json")
+}
+
+func postURL(c *gin.Context) { //add something to db
+	var newIPage IPage
+	//fmt.Println("Inside postURL")
+
+	if err := c.ShouldBindJSON(&newIPage); err != nil {
+		fmt.Println(err)
+		fmt.Println("Bind error")
+		return
+	}
+	todo := make(map[string]interface{})
+	todo["type"] = newIPage.Type
+	todo["site"] = newIPage.Site
+	todo["lang"] = newIPage.Lang
+	todo["link"] = newIPage.Link
+	todo["tags"] = newIPage.Tags
+	todo["title"] = newIPage.Title
+	todo["notes"] = newIPage.Notes
+	todo["length"] = newIPage.Length
+	todo["byline"] = newIPage.Byline
+	todo["excerpt"] = newIPage.Excerpt
+	todo["content"] = newIPage.Content
+	todo["createAt"] = newIPage.CreateAt
+	todo["lastView"] = newIPage.LastView
+	todo["index"] = newIPage.Index
+
+	doc := d.NewDocumentOf(todo)
+	db.Delete(query.NewQuery("todos").Where(query.Field("link").Eq(newIPage.Link)))
+	mapDocId, _ := db.InsertOne("todos", doc)
+	fmt.Println(mapDocId)
+	fmt.Print(newIPage.LastView)
+	db.ExportCollection("todos", "todos.json")
+}
+
+func deletePages(c *gin.Context) { //delete one pages from db
+	encodedURL := c.Param("link")
+	decodedURL, _ := url.QueryUnescape(encodedURL)
+	fmt.Println(decodedURL)
+	db.Delete(query.NewQuery("todos").Where(query.Field("link").Eq(decodedURL)))
+	db.ExportCollection("todos", "todos.json")
+	return
 }
 
 func main() {
-	js.Global().Set("GetURLContent", asyncFunc(GetURLContent))
-	select {}
+
+	my_badger := badger.DefaultOptions("").WithInMemory(true)
+	store, _ := badgerstore.Open(my_badger) // opens a badger in memory database
+	db, _ = clover.OpenWithStore(store)
+	fmt.Println("db opened")
+	defer db.Close()
+	db.ImportCollection("todos", "todos.json")
+	var drop_enabled = false
+
+	if drop_enabled {
+		db.DropCollection("todos")
+	}
+
+	collectionExists, err_collection := db.HasCollection("todos")
+	if err_collection != nil {
+		fmt.Println(err_collection)
+		return
+	}
+	fmt.Println(collectionExists)
+	if !collectionExists {
+		err_db := db.CreateCollection("todos")
+		if err_db != nil {
+			fmt.Println(err_db)
+			return
+		}
+		fmt.Println("Collection created in main")
+	}
+	r := gin.Default()
+	r.RedirectFixedPath = true
+
+	r.GET("/get/links/:link", getURL)
+	r.GET("/get/pages/:link", getPage)
+	r.GET("/get/pages", getPages)
+	r.GET("/delete/pages/:link", deletePages)
+	r.PUT("/update", putURL)
+	r.POST("/update", postURL)
+	err := r.Run(":1420")
+	if err != nil {
+		db.ExportCollection("todos", "todos.json")
+		return
+	}
+	defer db.ExportCollection("todos", "todos.json")
 }
