@@ -267,7 +267,7 @@ func main() {
 	r.GET("/delete/pages/:link", deletePages)
 	r.PUT("/update", putURL)
 	r.POST("/update", postURL)
-	err := r.Run(":1420")
+	err := r.Run(":5000")
 	if err != nil {
 		db.ExportCollection("todos", "todos.json")
 		return

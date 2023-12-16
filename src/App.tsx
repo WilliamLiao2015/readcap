@@ -3,7 +3,7 @@ import { atom, useRecoilState } from "recoil"
 import { AppShell } from "@mantine/core"
 import { Readability } from "@mozilla/readability"
 
-import { BASE_URL, PORT } from "./constants"
+import { BASE_URL, SERVER_PORT } from "./constants"
 import { getAllPages, updatePage } from "./utils"
 
 import Header from "./components/Header"
@@ -38,8 +38,7 @@ export default function App() {
   useEffect(() => {
     if (!currentLink || pages.map(p => p.link).includes(currentLink)) return
     async function fetchLink() {
-      console.log(encodeURIComponent(currentLink!))
-      const response = await fetch(`http://127.0.0.1:${PORT}/get/links/${encodeURIComponent(currentLink!)}`)
+      const response = await fetch(`http://127.0.0.1:${SERVER_PORT}/get/links/${encodeURIComponent(currentLink!)}`)
       if (!response.ok) return
       const htmlString = await response.text()
       const doc = new DOMParser().parseFromString(htmlString, "text/html")

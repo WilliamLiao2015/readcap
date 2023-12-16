@@ -1,4 +1,4 @@
-import { PORT } from "./constants"
+import { SERVER_PORT } from "./constants"
 
 
 export function validateUrlString(url: string) {
@@ -19,7 +19,7 @@ export function validateUrlString(url: string) {
 
 
 export async function getAllPages() {
-  const response = await fetch(`http://127.0.0.1:${PORT}/get/pages`)
+  const response = await fetch(`http://127.0.0.1:${SERVER_PORT}/get/pages`)
   const pages = await response.json() as IPage[]
   console.log(pages)
   return pages
@@ -28,11 +28,11 @@ export async function getAllPages() {
 
 export async function updatePage(page: IPage) {
   const xhr = new XMLHttpRequest()
-  xhr.open("POST", `http://127.0.0.1:${PORT}/update`)
+  xhr.open("POST", `http://127.0.0.1:${SERVER_PORT}/update`)
   xhr.send(JSON.stringify(page))
 }
 
 
 export async function deletePage(page: IPage) {
-  await fetch(`http://127.0.0.1:${PORT}/delete/pages/${encodeURIComponent(page.link)}`)
+  await fetch(`http://127.0.0.1:${SERVER_PORT}/delete/pages/${encodeURIComponent(page.link)}`)
 }
