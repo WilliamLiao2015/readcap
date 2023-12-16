@@ -5,7 +5,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"time"
 
 	"github.com/dgraph-io/badger/v3"
 	"github.com/gin-gonic/gin"
@@ -14,11 +13,6 @@ import (
 	"github.com/ostafen/clover/v2/query"
 	badgerstore "github.com/ostafen/clover/v2/store/badger"
 )
-
-type Data struct {
-	CreateAt    int64  `json:"createAt"`
-	HtmlContent string `json:"htmlContent"`
-}
 
 type IPage struct {
 	Type     string   `json:"type"`
@@ -51,10 +45,8 @@ func getURL(c *gin.Context) {
 	decodedUrl, _ := url.QueryUnescape(encodedUrl)
 	resp, _ := http.Get(decodedUrl)
 	body, _ := io.ReadAll(resp.Body)
-	var data Data
-	data.CreateAt = time.Now().Unix()
-	data.HtmlContent = string(body)
-	c.JSON(200, data)
+	c.Header("Access-Control-Allow-Origin", "*")
+	c.String(200, string(body))
 }
 
 func pageDeal(doc *d.Document) IPage {
@@ -133,12 +125,13 @@ func getPage(c *gin.Context) { //get page from db
 		return
 	}
 	page = pageDeal(doc)
+	c.Header("Access-Control-Allow-Origin", "*")
 	c.JSON(200, page)
 	db.ExportCollection("todos", "todos.json")
 }
 
 func getPages(c *gin.Context) { //get all pages from db
-	var pages []IPage
+	pages := []IPage{}
 	query := query.NewQuery("todos")
 	docs, err := db.FindAll(query)
 	if err != nil {
@@ -146,10 +139,10 @@ func getPages(c *gin.Context) { //get all pages from db
 		return
 	}
 	for _, doc := range docs {
-		var page IPage
-		page = pageDeal(doc)
+		page := pageDeal(doc)
 		pages = append(pages, page)
 	}
+	c.Header("Access-Control-Allow-Origin", "*")
 	c.JSON(200, pages)
 	db.ExportCollection("todos", "todos.json")
 }
@@ -185,6 +178,9 @@ func putURL(c *gin.Context) { //update something in db
 	fmt.Println(mapDocId)
 	fmt.Print(newIPage.LastView)
 	db.ExportCollection("todos", "todos.json")
+
+	c.Header("Access-Control-Allow-Origin", "*")
+	c.String(200, "edit success")
 }
 
 func postURL(c *gin.Context) { //add something to db
@@ -218,6 +214,9 @@ func postURL(c *gin.Context) { //add something to db
 	fmt.Println(mapDocId)
 	fmt.Print(newIPage.LastView)
 	db.ExportCollection("todos", "todos.json")
+
+	c.Header("Access-Control-Allow-Origin", "*")
+	c.String(200, "add success")
 }
 
 func deletePages(c *gin.Context) { //delete one pages from db
@@ -226,7 +225,8 @@ func deletePages(c *gin.Context) { //delete one pages from db
 	fmt.Println(decodedURL)
 	db.Delete(query.NewQuery("todos").Where(query.Field("link").Eq(decodedURL)))
 	db.ExportCollection("todos", "todos.json")
-	return
+	c.Header("Access-Control-Allow-Origin", "*")
+	c.String(200, "delete success")
 }
 
 func main() {
@@ -259,6 +259,7 @@ func main() {
 	}
 	r := gin.Default()
 	r.RedirectFixedPath = true
+	r.UseRawPath = true
 
 	r.GET("/get/links/:link", getURL)
 	r.GET("/get/pages/:link", getPage)

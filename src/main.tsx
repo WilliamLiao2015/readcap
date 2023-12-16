@@ -1,26 +1,33 @@
-import React from "react"
-import ReactDOM from "react-dom/client"
+import { StrictMode } from "react"
+import { createRoot } from "react-dom/client"
 import { RecoilRoot } from "recoil"
 import { MantineProvider } from "@mantine/core"
+import { ContextMenuProvider } from "mantine-contextmenu"
 
 import App from "./App"
 
 import "@mantine/core/styles.css"
+import "mantine-contextmenu/styles.css"
+
 import "./styles.css"
 
 
-ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
-  <React.StrictMode>
+createRoot(document.getElementById("root") as HTMLElement).render(
+  <StrictMode>
     <RecoilRoot>
       <MantineProvider theme={{
         breakpoints: {
+          xs: "0px",
           sm: "300px",
-          md: "800px",
-          lg: "1200px"
+          md: "600px",
+          lg: "900px",
+          xl: "1500px"
         }
       }}>
-        <App />
+        <ContextMenuProvider>
+          <App />
+        </ContextMenuProvider>
       </MantineProvider>
     </RecoilRoot>
-  </React.StrictMode>
+  </StrictMode>
 )
