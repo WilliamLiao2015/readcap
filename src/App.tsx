@@ -70,7 +70,6 @@ export default function App() {
         currentPage: page,
         pages: [...previous.pages, page]
       }))
-      updatePage(page)
     }
     fetchLink()
   }, [currentLink])

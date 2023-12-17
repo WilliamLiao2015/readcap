@@ -11,16 +11,16 @@ import PageItem from "./PageItem"
 
 export default function Navbar() {
   const [appState, setAppState] = useRecoilState<IAppState>(appStateAtom)
-  const { isUpdated, pages } = appState
+  const { pages } = appState
   const [pageList, handlers] = useListState<IPage>(pages)
 
   useEffect(() => {
-    if (!isUpdated && pages.length === pageList.length) return
+    if (pages.length === pageList.length) return
     handlers.setState(pages)
   }, [pages])
 
   useEffect(() => {
-    if (!isUpdated) return
+    if (pageList.length !== pageList.length) return
     setAppState(previous => ({
       ...previous,
       isUpdated: false,
