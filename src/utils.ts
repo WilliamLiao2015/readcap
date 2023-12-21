@@ -27,13 +27,9 @@ export async function getAllPages() {
 
 
 export async function updatePage(page: IPage) {
-  await fetch(`http://127.0.0.1:${SERVER_PORT}/update`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify(page)
-  })
+  const xhr = new XMLHttpRequest()
+  xhr.open("POST", `http://127.0.0.1:${SERVER_PORT}/update`)
+  xhr.send(JSON.stringify(page))
 }
 
 

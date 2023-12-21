@@ -147,42 +147,6 @@ func getPages(c *gin.Context) { //get all pages from db
 	db.ExportCollection("todos", "todos.json")
 }
 
-func putURL(c *gin.Context) { //update something in db
-	var newIPage IPage
-	//fmt.Println("Inside postURL")
-
-	if err := c.ShouldBindJSON(&newIPage); err != nil {
-		fmt.Println(err)
-		fmt.Println("Bind error")
-		return
-	}
-	todo := make(map[string]interface{})
-	todo["type"] = newIPage.Type
-	todo["site"] = newIPage.Site
-	todo["lang"] = newIPage.Lang
-	todo["link"] = newIPage.Link
-	todo["tags"] = newIPage.Tags
-	todo["title"] = newIPage.Title
-	todo["notes"] = newIPage.Notes
-	todo["length"] = newIPage.Length
-	todo["byline"] = newIPage.Byline
-	todo["excerpt"] = newIPage.Excerpt
-	todo["content"] = newIPage.Content
-	todo["createAt"] = newIPage.CreateAt
-	todo["lastView"] = newIPage.LastView
-	todo["index"] = newIPage.Index
-
-	doc := d.NewDocumentOf(todo)
-	db.Delete(query.NewQuery("todos").Where(query.Field("link").Eq(newIPage.Link)))
-	mapDocId, _ := db.InsertOne("todos", doc)
-	fmt.Println(mapDocId)
-	fmt.Print(newIPage.LastView)
-	db.ExportCollection("todos", "todos.json")
-
-	c.Header("Access-Control-Allow-Origin", "*")
-	c.String(200, "edit success")
-}
-
 func postURL(c *gin.Context) { //add something to db
 	var newIPage IPage
 	//fmt.Println("Inside postURL")
@@ -265,7 +229,6 @@ func main() {
 	r.GET("/get/pages/:link", getPage)
 	r.GET("/get/pages", getPages)
 	r.GET("/delete/pages/:link", deletePages)
-	r.PUT("/update", putURL)
 	r.POST("/update", postURL)
 	err := r.Run(":5000")
 	if err != nil {
