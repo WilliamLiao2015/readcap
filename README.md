@@ -1,7 +1,30 @@
-# Tauri + React + Typescript
+# ReadBase
 
-This template should help get you started developing with Tauri, React and Typescript in Vite.
+ReadBase is a read-it-later app. You can set up locally with git.
 
-## Recommended IDE Setup
+```
+git clone https://github.com/WilliamLiao2015/readbase.git
+cd readbase
+```
 
-- [VS Code](https://code.visualstudio.com/) + [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode) + [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
+## Installation
+
+Make sure you have installed Node.js.
+
+```
+npm install
+```
+
+## Development
+
+```
+npm run tauri dev
+```
+
+## Build
+
+```
+npm run tauri build
+```
+
+Go to `./src-tauri/target/release/bundle` and install the corresponding executable file for your platform.
