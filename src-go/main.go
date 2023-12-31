@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"sync"
 
 	"github.com/dgraph-io/badger/v3"
 	"github.com/gin-gonic/gin"
@@ -13,6 +14,8 @@ import (
 	"github.com/ostafen/clover/v2/query"
 	badgerstore "github.com/ostafen/clover/v2/store/badger"
 )
+
+var mutex sync.Mutex
 
 type IPage struct {
 	Type     string   `json:"type"`
@@ -114,6 +117,8 @@ func pageDeal(doc *d.Document) IPage {
 }
 
 func getPage(c *gin.Context) { //get page from db
+	mutex.Lock()
+	db.ImportCollection("todos", "todos.json")
 	encodedURL := c.Param("link")
 	decodedURL, _ := url.QueryUnescape(encodedURL)
 	fmt.Println(decodedURL)
@@ -126,12 +131,15 @@ func getPage(c *gin.Context) { //get page from db
 	}
 	page = pageDeal(doc)
 	c.Header("Access-Control-Allow-Origin", "*")
-	c.JSON(200, page)
 	db.ExportCollection("todos", "todos.json")
+	c.JSON(200, page)
+	defer mutex.Unlock()
 }
 
 func getPages(c *gin.Context) { //get all pages from db
+	mutex.Lock()
 	pages := []IPage{}
+	db.ImportCollection("todos", "todos.json")
 	query := query.NewQuery("todos")
 	docs, err := db.FindAll(query)
 	if err != nil {
@@ -143,11 +151,14 @@ func getPages(c *gin.Context) { //get all pages from db
 		pages = append(pages, page)
 	}
 	c.Header("Access-Control-Allow-Origin", "*")
-	c.JSON(200, pages)
 	db.ExportCollection("todos", "todos.json")
+	c.JSON(200, pages)
+	defer mutex.Unlock()
+
 }
 
 func postURL(c *gin.Context) { //add something to db
+	mutex.Lock()
 	var newIPage IPage
 	//fmt.Println("Inside postURL")
 
@@ -156,6 +167,7 @@ func postURL(c *gin.Context) { //add something to db
 		fmt.Println("Bind error")
 		return
 	}
+	db.ImportCollection("todos", "todos.json")
 	todo := make(map[string]interface{})
 	todo["type"] = newIPage.Type
 	todo["site"] = newIPage.Site
@@ -181,16 +193,20 @@ func postURL(c *gin.Context) { //add something to db
 
 	c.Header("Access-Control-Allow-Origin", "*")
 	c.String(200, "add success")
+	defer mutex.Unlock()
 }
 
 func deletePages(c *gin.Context) { //delete one pages from db
+	mutex.Lock()
 	encodedURL := c.Param("link")
 	decodedURL, _ := url.QueryUnescape(encodedURL)
+	db.ImportCollection("todos", "todos.json")
 	fmt.Println(decodedURL)
 	db.Delete(query.NewQuery("todos").Where(query.Field("link").Eq(decodedURL)))
 	db.ExportCollection("todos", "todos.json")
 	c.Header("Access-Control-Allow-Origin", "*")
 	c.String(200, "delete success")
+	defer mutex.Unlock()
 }
 
 func main() {
